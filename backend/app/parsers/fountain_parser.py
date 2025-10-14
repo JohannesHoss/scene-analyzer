@@ -89,10 +89,14 @@ class FountainParser(BaseParser):
                     current_scene_content = []
 
                 # Neue Szene starten
-                int_ext = match.group(1).upper()
-                # Normalisiere INT./EXT Varianten
-                if int_ext in ["INT./EXT", "INT/EXT", "I/E"]:
+                int_ext = match.group(1).upper().replace(".", "")
+                # Normalisiere INT./EXT Varianten (DE + EN)
+                if int_ext in ["INT/EXT", "INNEN/AUSSEN", "I/E"]:
                     int_ext = "INT/EXT"
+                elif int_ext == "INNEN":
+                    int_ext = "INT"
+                elif int_ext == "AUSSEN":
+                    int_ext = "EXT"
 
                 location = match.group(2).strip() if match.group(2) else "UNKNOWN"
                 time = match.group(3).strip() if match.group(3) else None

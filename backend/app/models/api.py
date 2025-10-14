@@ -29,6 +29,7 @@ class ScriptUploadResponse(BaseModel):
     scenes_count: int = Field(ge=0, description="Anzahl erkannter Szenen")
     pages: int = Field(ge=0, description="Geschätzte Seitenzahl")
     upload_time: datetime = Field(description="Upload-Zeitstempel")
+    scenes: list[Scene] = Field(default_factory=list, description="Alle analysierten Szenen")
 
     model_config = {
         "json_schema_extra": {

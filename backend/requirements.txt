@@ -20,6 +20,9 @@ alembic==1.13.3
 # Redis (optional)
 redis==5.2.0
 
+# AI & Config
+python-dotenv==1.0.1
+
 # Testing
 pytest==8.3.3
 pytest-cov==6.0.0

@@ -53,6 +53,7 @@ class ScriptService:
             scenes_count=len(scenes),
             pages=pages,
             upload_time=datetime.utcnow(),
+            scenes=scenes,  # Include full scenes data
         )
 
     def _calculate_pages(self, scenes) -> int:
@@ -77,3 +78,53 @@ class ScriptService:
             UUID als String
         """
         return str(uuid.uuid4())
+
+    def _detect_language(self, scenes) -> str:
+        """
+        Erkennt Sprache des Drehbuchs (DE oder EN).
+
+        Args:
+            scenes: Liste von Scenes
+
+        Returns:
+            "de" oder "en"
+        """
+        if not scenes:
+            return "de"  # Default
+
+        # Prüfe ersten Scene-Heading
+        first_int_ext = scenes[0].int_ext or ""
+
+        # Deutsche Keywords in raw_content?
+        german_keywords = ["INNEN", "AUSSEN", "MORGEN", "ABEND"]
+        for scene in scenes[:3]:  # Prüfe erste 3 Szenen
+            if scene.raw_content:
+                content_upper = scene.raw_content.upper()
+                if any(keyword in content_upper for keyword in german_keywords):
+                    return "de"
+
+        return "de"  # Default Deutsch
+
+    async def _analyze_scenes_with_ai(self, scenes, language: str):
+        """
+        Analysiert Szenen mit KI und fügt summary, subtext, scene_goal hinzu.
+
+        Args:
+            scenes: Liste von Scenes (wird in-place modifiziert)
+            language: Sprache (de oder en)
+        """
+        try:
+            analyses = await self.ai_analyzer.analyze_scenes_batch(scenes, language)
+
+            for scene, analysis in zip(scenes, analyses):
+                scene.summary = analysis.get("summary")
+                scene.subtext = analysis.get("subtext")
+                scene.scene_goal = analysis.get("scene_goal")
+        except Exception as e:
+            # Bei Fehler: Fallback ohne KI
+            print(f"AI analysis failed: {e}")
+            for scene in scenes:
+                if scene.raw_content:
+                    # Einfacher Fallback: Erste Zeilen als Summary
+                    lines = scene.raw_content.strip().split("\n")[:2]
+                    scene.summary = " ".join(lines)[:150]

@@ -10,11 +10,17 @@ class Scene(BaseModel):
 
     scene_number: int = Field(ge=1, description="Szenen-Nummer (ab 1)")
     int_ext: Optional[str] = Field(None, description="INT, EXT, oder INT/EXT")
-    location: Optional[str] = Field(None, max_length=200)
+    location: Optional[str] = Field(None, max_length=200, description="Schauplatz")
     time: Optional[str] = Field(None, description="TAG, NACHT, etc.")
-    characters: list[str] = Field(default_factory=list)
+    characters: list[str] = Field(default_factory=list, description="Charakternamen")
+    characters_count: int = Field(default=0, ge=0, description="Anzahl Charaktere")
     page_number: int = Field(ge=1, description="Start-Seite der Szene")
     estimated_length: Optional[float] = Field(None, ge=0, description="Geschätzte Länge in Minuten")
+    
+    # KI-generierte Felder
+    summary: Optional[str] = Field(None, description="Kurzzusammenfassung")
+    subtext: Optional[str] = Field(None, description="Emotionaler Subtext")
+    scene_goal: Optional[str] = Field(None, description="Szenenziel")
 
     # Intern (nicht in API-Response)
     raw_content: Optional[str] = Field(None, exclude=True, description="Roher Szenen-Content")
