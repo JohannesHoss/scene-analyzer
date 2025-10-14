@@ -3,7 +3,9 @@ Parser Registry - Factory für Script-Parser
 """
 from app.parsers.base import BaseParser
 from app.parsers.exceptions import UnsupportedFormatError
+from app.parsers.fdx_parser import FDXParser
 from app.parsers.fountain_parser import FountainParser
+from app.parsers.pdf_parser import PDFParser
 
 
 class ParserRegistry:
@@ -12,8 +14,10 @@ class ParserRegistry:
     def __init__(self):
         # Parser in Prioritäts-Reihenfolge
         self.parsers: list[BaseParser] = [
-            FountainParser(),
-            # PlainTextParser() wird in Phase 2 hinzugefügt
+            FountainParser(),  # Priorität 1: Strukturiertes Format
+            FDXParser(),  # Priorität 2: Final Draft XML
+            PDFParser(),  # Priorität 3: PDF (heuristisch)
+            # PlainTextParser() wird später hinzugefügt
         ]
 
     def get_parser(self, filename: str, content: bytes) -> BaseParser:
@@ -38,7 +42,7 @@ class ParserRegistry:
                 return parser
 
         # Kein passender Parser gefunden
-        supported_formats = ["fountain"]  # TODO: Dynamisch aus Parsern extrahieren
+        supported_formats = ["fountain", "fdx", "pdf"]
         raise UnsupportedFormatError(filename, supported_formats)
 
     def get_format_name(self, parser: BaseParser) -> str:
