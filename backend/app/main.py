@@ -46,9 +46,10 @@ async def root():
     }
 
 
-# TODO: Import und registrieren der API-Router
-# from app.api import scripts
-# app.include_router(scripts.router, prefix="/api/v1")
+# Register API Routers
+from app.api import scripts
+
+app.include_router(scripts.router, prefix="/api/v1")
 
 if __name__ == "__main__":
     import uvicorn

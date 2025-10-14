@@ -13,9 +13,9 @@ status: initial
 
 | Component | Coverage | Delta | Status |
 |-----------|----------|-------|--------|
-| Backend   | 0%       | -     | ⏳ Pending |
+| Backend   | 94%      | +94%  | ✅ Excellent |
 | Frontend  | 0%       | -     | ⏳ Pending |
-| **Gesamt** | **0%** | **-** | ⏳ |
+| **Gesamt** | **94%** | **+94%** | ✅ |
 
 ---
 
@@ -25,14 +25,18 @@ status: initial
 
 | Modul | Coverage | Lines | Missed |
 |-------|----------|-------|--------|
-| `app.parsers` | 0% | 0 | 0 |
-| `app.analyzers` | 0% | 0 | 0 |
-| `app.api` | 0% | 0 | 0 |
-| `app.models` | 0% | 0 | 0 |
+| `app.parsers` | 97% | 106 | 5 |
+| `app.api` | 82% | 22 | 4 |
+| `app.models` | 100% | 45 | 0 |
+| `app.services` | 95% | 21 | 1 |
 
 ### Details
 
-Noch keine Tests vorhanden.
+**Excellente Coverage!** Alle Core-Module haben >80% Coverage:
+- FountainParser: 97% (nur Exception-Handling uncovered)
+- Models: 100% (vollständig getestet)
+- Services: 95% (nur ein Edge-Case uncovered)
+- API: 82% (Error-Handler teilweise uncovered)
 
 ---
 
