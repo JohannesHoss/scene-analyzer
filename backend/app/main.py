@@ -1,12 +1,15 @@
 from fastapi import FastAPI, File, UploadFile, HTTPException, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import Response
 from models.schemas import FileUploadResponse, AnalysisRequest, AnalysisStatus
 from parsers import get_parser
 from analyzer import OpenRouterClient, SceneAnalyzer
+from excel import ExcelGenerator
 import uuid
 import os
 import asyncio
 from typing import Dict
+from datetime import datetime
 
 app = FastAPI(
     title="Scene Analyzer API",
@@ -264,3 +267,43 @@ async def get_results(job_id: str):
         "total_scenes": len(job["results"]),
         "results": job["results"]
     }
+
+
+@app.get("/api/v1/download/{job_id}")
+async def download_excel(job_id: str):
+    """Download analysis as Excel file"""
+    
+    if job_id not in analysis_jobs:
+        raise HTTPException(status_code=404, detail="Job not found")
+    
+    job = analysis_jobs[job_id]
+    
+    if job["status"] != "completed":
+        raise HTTPException(
+            status_code=400,
+            detail=f"Analysis not completed. Current status: {job['status']}"
+        )
+    
+    # Generate Excel
+    generator = ExcelGenerator(
+        language=job["output_language"],
+        mode=job["mode"]
+    )
+    
+    excel_data = generator.generate(
+        analysis_data=job["results"],
+        filename=job["filename"]
+    )
+    
+    # Create filename
+    base_name = os.path.splitext(job["filename"])[0]
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    download_filename = f"{base_name}_analysis_{timestamp}.xlsx"
+    
+    return Response(
+        content=excel_data,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={
+            "Content-Disposition": f'attachment; filename="{download_filename}"'
+        }
+    )
