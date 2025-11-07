@@ -1,9 +1,11 @@
-from fastapi import FastAPI, File, UploadFile, HTTPException
+from fastapi import FastAPI, File, UploadFile, HTTPException, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
 from models.schemas import FileUploadResponse, AnalysisRequest, AnalysisStatus
 from parsers import get_parser
+from analyzer import OpenRouterClient, SceneAnalyzer
 import uuid
 import os
+import asyncio
 from typing import Dict
 
 app = FastAPI(
@@ -161,4 +163,104 @@ async def get_scenes(job_id: str):
         "total_scenes": job["total_scenes"],
         "detected_language": job.get("detected_language", "unknown"),
         "scenes": job.get("scenes", [])
+    }
+
+
+@app.post("/api/v1/analyze")
+async def start_analysis(request: AnalysisRequest, background_tasks: BackgroundTasks):
+    """Start AI analysis of uploaded file"""
+    
+    if request.file_id not in analysis_jobs:
+        raise HTTPException(status_code=404, detail="File not found")
+    
+    job = analysis_jobs[request.file_id]
+    
+    if job["status"] != "uploaded":
+        raise HTTPException(status_code=400, detail=f"Job already {job['status']}")
+    
+    # Update job with analysis parameters
+    job.update({
+        "output_language": request.output_language,
+        "model": request.model,
+        "mode": request.mode,
+        "protagonist_count": request.protagonist_count,
+        "status": "queued"
+    })
+    
+    # Estimate cost
+    try:
+        client = OpenRouterClient()
+        analyzer = SceneAnalyzer(client, request.mode, request.output_language, request.model)
+        estimated_cost = analyzer.estimate_cost(job["total_scenes"])
+        job["estimated_cost"] = estimated_cost
+    except Exception as e:
+        job["estimated_cost"] = 0.0
+    
+    # Start analysis in background
+    background_tasks.add_task(process_analysis, request.file_id)
+    
+    return {
+        "job_id": request.file_id,
+        "status": "queued",
+        "total_scenes": job["total_scenes"],
+        "estimated_cost": job.get("estimated_cost", 0.0)
+    }
+
+
+async def process_analysis(job_id: str):
+    """Background task to process scene analysis"""
+    try:
+        job = analysis_jobs[job_id]
+        job["status"] = "processing"
+        
+        # Initialize analyzer
+        client = OpenRouterClient()
+        analyzer = SceneAnalyzer(
+            client,
+            job["mode"],
+            job["output_language"],
+            job["model"]
+        )
+        
+        # Analyze scenes
+        results = await analyzer.analyze_all_scenes(
+            job["scenes"],
+            analysis_jobs,
+            job_id
+        )
+        
+        # Store results
+        job["results"] = results
+        job["status"] = "completed"
+        job["progress"] = 100
+        
+    except Exception as e:
+        job["status"] = "error"
+        job["error"] = str(e)
+        job["progress"] = 0
+
+
+@app.get("/api/v1/results/{job_id}")
+async def get_results(job_id: str):
+    """Get analysis results"""
+    
+    if job_id not in analysis_jobs:
+        raise HTTPException(status_code=404, detail="Job not found")
+    
+    job = analysis_jobs[job_id]
+    
+    if job["status"] != "completed":
+        raise HTTPException(
+            status_code=400,
+            detail=f"Analysis not completed. Current status: {job['status']}"
+        )
+    
+    return {
+        "job_id": job_id,
+        "filename": job["filename"],
+        "mode": job["mode"],
+        "language": job["output_language"],
+        "model": job["model"],
+        "total_scenes": len(job["results"]),
+        "results": job["results"]
     }
