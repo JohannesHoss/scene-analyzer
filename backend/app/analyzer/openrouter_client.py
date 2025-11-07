@@ -30,6 +30,8 @@ class OpenRouterClient:
         mode: str, 
         language: str, 
         model: str,
+        scene_number: int = 1,
+        total_scenes: int = 1,
         retry_count: int = 3
     ) -> Dict:
         """
@@ -47,7 +49,10 @@ class OpenRouterClient:
         """
         model_id = self.models.get(model, self.models["gpt-4o-mini"])
         
-        prompt = self._build_prompt(scene_text, mode, language)
+        # Calculate scene position percentage
+        position_pct = int((scene_number / total_scenes) * 100) if total_scenes > 0 else 0
+        
+        prompt = self._build_prompt(scene_text, mode, language, scene_number, total_scenes, position_pct)
         
         for attempt in range(retry_count):
             try:
@@ -98,7 +103,7 @@ class OpenRouterClient:
                     raise Exception(f"Failed to parse API response: {str(e)}")
                 time.sleep(1)
     
-    def _build_prompt(self, scene: str, mode: str, language: str) -> str:
+    def _build_prompt(self, scene: str, mode: str, language: str, scene_number: int = 1, total_scenes: int = 1, position_pct: int = 0) -> str:
         """Build analysis prompt based on mode and language"""
         
         if language == "DE":
@@ -110,7 +115,7 @@ SZENE:
 AUSGABE (als reines JSON, ohne Markdown):
 {{
   "location": "Konkreter Schauplatz aus dem Text (z.B. 'Wohnzimmer', 'Polizeirevier', 'Park')",
-  "time_of_day": "Tageszeit aus dem Kontext (z.B. 'Morgen', 'Nachmittag', 'Nacht', 'Unbekannt')",
+  "time_of_day": "WICHTIG: Bestimme die Tageszeit aus JEGLICHEN Hinweisen im Text - explizit (z.B. 'Morgen', 'Abends', '15 Uhr') ODER implizit (z.B. Sonnenaufgang=Morgen, Dunkelheit=Nacht, Mittagspause=Mittag, Kinder in der Schule=Vormittag, Feierabend=Abend, Sterne/Mond=Nacht, helles Tageslicht=Tag). Nur wenn GAR KEIN Hinweis vorhanden: 'Unbekannt'. Wähle aus: Morgen|Vormittag|Mittag|Nachmittag|Abend|Nacht|Dämmerung|Unbekannt",
   "int_ext": "INT|EXT|UNBEKANNT (Innenraum oder Außenbereich)",
   "story_event": "Eine prägnante Zusammenfassung in einem Satz - WAS passiert?",
   "subtext": "Emotionale/unterschwellige Ebene in 5-10 Wörtern - was wird NICHT gesagt?",
@@ -129,7 +134,7 @@ SCENE:
 OUTPUT (as pure JSON, no markdown):
 {{
   "location": "Specific location from context (e.g. 'Living room', 'Police station', 'Park')",
-  "time_of_day": "Time from context (e.g. 'Morning', 'Afternoon', 'Night', 'Unknown')",
+  "time_of_day": "IMPORTANT: Determine time of day from ANY clues in the text - explicit (e.g. 'Morning', 'Evening', '3 PM') OR implicit (e.g. sunrise=Morning, darkness=Night, lunch break=Noon, kids at school=Morning, rush hour=Evening, stars/moon=Night, bright daylight=Day). Only if NO clues exist: 'Unknown'. Choose from: Morning|Noon|Afternoon|Evening|Night|Dawn|Dusk|Unknown",
   "int_ext": "INT|EXT|UNKNOWN (Interior or Exterior)",
   "story_event": "A concise summary in one sentence - WHAT happens?",
   "subtext": "Emotional/subtext layer in 5-10 words - what is NOT said?",
@@ -159,13 +164,8 @@ OUTPUT (as pure JSON, no markdown):
   "suspect_status": "List of characters with status: 'Name (Suspect - reason)'|'Name (Alibi - details)'|'Name (Neutral)' or 'No suspects in this scene'"
 """
         
-        if mode in ["story", "combined"]:
-            base_prompt += """,
-  "hero_journey": "Ordinary World|Call to Adventure|Crossing Threshold|Tests & Allies|Approach|Ordeal|Reward|Road Back|Resurrection|Return with Elixir|Not Applicable",
-  "act": "Act I|Act II-A|Act II-B|Act III",
-  "plot_point_actual": "Inciting Incident|Plot Point 1|Midpoint|Plot Point 2|Climax|Resolution|None",
-  "plot_point_expected": "Expected plot point based on position"
-"""
+        # Story mode fields are handled separately via post-analysis
+        # This avoids inconsistent scene-by-scene story structure analysis
         
         base_prompt += "\n}\n\nWichtig: Antworte NUR mit dem JSON-Objekt, ohne zusätzlichen Text oder Markdown-Formatierung."
         
@@ -219,3 +219,63 @@ OUTPUT (as pure JSON, no markdown):
             data["off_stage"] = []
         
         return data
+    
+    def call_api(
+        self,
+        prompt: str,
+        model: str,
+        max_tokens: int = 1000,
+        temperature: float = 0.3
+    ) -> str:
+        """
+        Generic API call for custom prompts
+        
+        Args:
+            prompt: The prompt text
+            model: Model identifier
+            max_tokens: Maximum tokens in response
+            temperature: Temperature setting
+        
+        Returns:
+            Raw response content as string
+        """
+        model_id = self.models.get(model, self.models["gpt-4o-mini"])
+        
+        try:
+            response = requests.post(
+                f"{self.base_url}/chat/completions",
+                headers={
+                    "Authorization": f"Bearer {self.api_key}",
+                    "Content-Type": "application/json",
+                    "HTTP-Referer": "https://scene-analyzer.local",
+                    "X-Title": "Scene Analyzer"
+                },
+                json={
+                    "model": model_id,
+                    "messages": [
+                        {
+                            "role": "system",
+                            "content": "You are a professional screenplay analyst. Provide detailed, thoughtful analysis."
+                        },
+                        {
+                            "role": "user",
+                            "content": prompt
+                        }
+                    ],
+                    "temperature": temperature,
+                    "max_tokens": max_tokens
+                },
+                timeout=60
+            )
+            
+            response.raise_for_status()
+            result = response.json()
+            
+            # Extract content from response
+            content = result['choices'][0]['message']['content']
+            return content
+            
+        except requests.exceptions.RequestException as e:
+            raise Exception(f"API request failed: {str(e)}")
+        except (KeyError, json.JSONDecodeError) as e:
+            raise Exception(f"Failed to parse API response: {str(e)}")

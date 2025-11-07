@@ -1,7 +1,7 @@
 from openpyxl import Workbook
 from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
 from openpyxl.utils import get_column_letter
-from typing import List, Dict
+from typing import List, Dict, Optional
 import io
 from datetime import datetime
 
@@ -13,8 +13,9 @@ class ExcelGenerator:
         self.language = language
         self.mode = mode
         self.wb = Workbook()
+        self.aronson_data = None
         
-    def generate(self, analysis_data: List[Dict], filename: str) -> bytes:
+    def generate(self, analysis_data: List[Dict], filename: str, aronson_data: Optional[List[Dict]] = None) -> bytes:
         """
         Generate Excel file with formatted analysis results
         
@@ -72,6 +73,10 @@ class ExcelGenerator:
         
         # Freeze header rows
         ws.freeze_panes = "A3"
+        
+        # Add Aronson sheet if story mode and data available
+        if "story" in self.mode and aronson_data:
+            self._add_aronson_sheet(aronson_data)
         
         # Add metadata sheet if story mode
         if "story" in self.mode:
@@ -189,6 +194,83 @@ class ExcelGenerator:
         for col_idx, width in column_widths.items():
             if col_idx < len(headers):
                 ws.column_dimensions[get_column_letter(col_idx + 1)].width = width
+    
+    def _add_aronson_sheet(self, aronson_data: List[Dict]):
+        """Add Aronson analysis sheet for story mode"""
+        ws = self.wb.create_sheet("Aronson Analysis", 1)  # Insert as second sheet
+        
+        # Title
+        ws.merge_cells('A1:C1')
+        title_cell = ws['A1']
+        title_text = "Aronson Single Path Analyse" if self.language == "DE" else "Aronson Single Path Analysis"
+        title_cell.value = title_text
+        title_cell.font = Font(size=14, bold=True)
+        title_cell.alignment = Alignment(horizontal="center", vertical="center")
+        ws.row_dimensions[1].height = 30
+        title_cell.fill = PatternFill(start_color="4472C4", end_color="4472C4", fill_type="solid")
+        title_cell.font = Font(size=14, bold=True, color="FFFFFF")
+        
+        # Headers
+        question_header = "Frage" if self.language == "DE" else "Question"
+        answer_header = "Antwort" if self.language == "DE" else "Answer"
+        
+        ws['A2'] = "#"
+        ws['B2'] = question_header
+        ws['C2'] = answer_header
+        
+        for col in ['A', 'B', 'C']:
+            cell = ws[f'{col}2']
+            cell.font = Font(bold=True, color="FFFFFF")
+            cell.fill = PatternFill(start_color="4472C4", end_color="4472C4", fill_type="solid")
+            cell.alignment = Alignment(horizontal="center", vertical="center")
+            cell.border = Border(
+                left=Side(style='thin'),
+                right=Side(style='thin'),
+                top=Side(style='thin'),
+                bottom=Side(style='thin')
+            )
+        
+        # Data rows
+        for idx, item in enumerate(aronson_data, 1):
+            row_num = idx + 2
+            
+            # Number
+            num_cell = ws[f'A{row_num}']
+            num_cell.value = idx
+            num_cell.alignment = Alignment(horizontal="center", vertical="top")
+            
+            # Question
+            question_cell = ws[f'B{row_num}']
+            question_cell.value = item.get("question", "")
+            question_cell.alignment = Alignment(vertical="top", wrap_text=True)
+            question_cell.font = Font(bold=True)
+            
+            # Answer
+            answer_cell = ws[f'C{row_num}']
+            answer_cell.value = item.get("answer", "")
+            answer_cell.alignment = Alignment(vertical="top", wrap_text=True)
+            
+            # Borders for all cells
+            for col in ['A', 'B', 'C']:
+                cell = ws[f'{col}{row_num}']
+                cell.border = Border(
+                    left=Side(style='thin'),
+                    right=Side(style='thin'),
+                    top=Side(style='thin'),
+                    bottom=Side(style='thin')
+                )
+                
+                # Alternate row colors
+                if row_num % 2 == 1:
+                    cell.fill = PatternFill(start_color="F2F2F2", end_color="F2F2F2", fill_type="solid")
+        
+        # Column widths
+        ws.column_dimensions['A'].width = 5
+        ws.column_dimensions['B'].width = 60
+        ws.column_dimensions['C'].width = 80
+        
+        # Freeze header
+        ws.freeze_panes = "A3"
     
     def _add_metadata_sheet(self, analysis_data: List[Dict], filename: str):
         """Add metadata sheet for story mode"""

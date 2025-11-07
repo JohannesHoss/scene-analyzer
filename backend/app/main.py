@@ -234,6 +234,21 @@ async def process_analysis(job_id: str):
         
         # Store results
         job["results"] = results
+        
+        # Run story structure analysis if story mode
+        if "story" in job["mode"]:
+            job["status"] = "analyzing_story_structure"
+            results = await analyzer.analyze_story_structure(results)
+            job["results"] = results
+            
+            # Run Aronson analysis
+            job["status"] = "analyzing_aronson"
+            aronson_results = await analyzer.analyze_aronson_questions(
+                job["scenes"],
+                results
+            )
+            job["aronson_results"] = aronson_results
+        
         job["status"] = "completed"
         job["progress"] = 100
         
@@ -290,9 +305,13 @@ async def download_excel(job_id: str):
         mode=job["mode"]
     )
     
+    # Get Aronson data if available
+    aronson_data = job.get("aronson_results", None)
+    
     excel_data = generator.generate(
         analysis_data=job["results"],
-        filename=job["filename"]
+        filename=job["filename"],
+        aronson_data=aronson_data
     )
     
     # Create filename
