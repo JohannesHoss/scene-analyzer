@@ -93,6 +93,19 @@ class BaseParser(ABC):
             r'(?i)^drinnen',
         ]
         
+        # Location patterns (German & English)
+        location_patterns = [
+            (r'(?i)^(?:in|im|in der|in dem|at|in the)\s+([^,.!?]+)', 'location'),
+            (r'(?i)(?:wohnung|haus|zimmer|küche|büro|apartment|house|room|kitchen|office)\s+([^,.!?]+)?', 'location')
+        ]
+        
+        # Time patterns
+        time_patterns = [
+            (r'(?i)(morgens?|vormittags?|mittags?|nachmittags?|abends?|nachts?)', 'time'),
+            (r'(?i)(morning|noon|afternoon|evening|night)', 'time'),
+            (r'(?i)(früh|spät|später|later|early|late)', 'time')
+        ]
+        
         scene_number = 0
         current_text = []
         word_count = 0
@@ -113,15 +126,10 @@ class BaseParser(ABC):
             if is_new_scene or (word_count > max_words_per_scene and current_text):
                 if current_text:
                     scene_number += 1
-                    scenes.append({
-                        'number': scene_number,
-                        'int_ext': 'UNKNOWN',
-                        'location': 'UNKNOWN',
-                        'time_of_day': 'UNKNOWN',
-                        'text': '\n\n'.join(current_text),
-                        'start_line': None,
-                        'end_line': None
-                    })
+                    scene_text = '\n\n'.join(current_text)
+                    scenes.append(self._enrich_treatment_scene(
+                        scene_number, scene_text, location_patterns, time_patterns
+                    ))
                     current_text = []
                     word_count = 0
             
@@ -131,17 +139,50 @@ class BaseParser(ABC):
         # Add last scene
         if current_text:
             scene_number += 1
-            scenes.append({
-                'number': scene_number,
-                'int_ext': 'UNKNOWN',
-                'location': 'UNKNOWN',
-                'time_of_day': 'UNKNOWN',
-                'text': '\n\n'.join(current_text),
-                'start_line': None,
-                'end_line': None
-            })
+            scene_text = '\n\n'.join(current_text)
+            scenes.append(self._enrich_treatment_scene(
+                scene_number, scene_text, location_patterns, time_patterns
+            ))
         
         return scenes
+    
+    def _enrich_treatment_scene(self, number: int, text: str, location_patterns: list, time_patterns: list) -> Dict:
+        """Extract location/time from treatment scene text"""
+        location = None
+        time_of_day = None
+        int_ext = None
+        
+        # Get first meaningful line (skip headers/page numbers)
+        first_lines = [l.strip() for l in text.split('\n')[:5] if l.strip() and len(l.strip()) > 10]
+        search_text = ' '.join(first_lines[:2]) if first_lines else text[:200]
+        
+        # Try to extract time
+        for pattern, _ in time_patterns:
+            match = re.search(pattern, search_text)
+            if match:
+                time_of_day = match.group(1).strip().upper()
+                break
+        
+        # Try to detect INT/EXT from context words
+        if re.search(r'(?i)\b(outside|exterior|street|straße|draußen|außen|courtyard|roof|dach)\b', search_text):
+            int_ext = 'EXT.'
+        elif re.search(r'(?i)\b(inside|interior|bedroom|kitchen|living room|apartment|zimmer|schlafzimmer|küche|wohnzimmer|wohnung|raum|room|bathroom|bad)\b', search_text):
+            int_ext = 'INT.'
+        
+        # Try to extract location from common place names
+        loc_match = re.search(r'(?i)\b(bedroom|kitchen|living room|bathroom|apartment|courtyard|roof|office|studio|house|street|playground|kindergarten|schlafzimmer|küche|wohnzimmer|bad|wohnung|hof|dach|büro|haus|straße|spielplatz|kindergarten)\b', search_text)
+        if loc_match:
+            location = loc_match.group(1).title()
+        
+        return {
+            'number': number,
+            'int_ext': int_ext or '-',
+            'location': location or '-',
+            'time_of_day': time_of_day or '-',
+            'text': text,
+            'start_line': None,
+            'end_line': None
+        }
     
     def detect_language(self) -> str:
         """Detect if text is German or English"""

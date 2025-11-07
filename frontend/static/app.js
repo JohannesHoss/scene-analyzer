@@ -101,11 +101,44 @@ async function pollStatus() {
     }, 2000);
 }
 
-function showSuccess() {
+async function showSuccess() {
     document.getElementById('progressModal').classList.add('hidden');
+    
+    // Fetch results and render table
+    try {
+        const res = await fetch(`${API}/results/${jobId}`);
+        const data = await res.json();
+        renderTable(data);
+    } catch (e) {
+        console.error('Failed to load results:', e);
+    }
+    
     document.getElementById('successModal').classList.remove('hidden');
     document.getElementById('successModal').classList.add('flex');
     document.getElementById('downloadBtn').onclick = () => {
         window.location.href = `${API}/download/${jobId}`;
     };
 }
+
+function renderTable(data) {
+    const results = data.results || [];
+    document.getElementById('resultSceneCount').textContent = results.length;
+    
+    if (results.length === 0) return;
+    
+    // Build headers from first result keys
+    const headers = Object.keys(results[0]);
+    const headerRow = document.getElementById('tableHeaders');
+    headerRow.innerHTML = headers.map(h => `<th>${h.replace(/_/g, ' ').toUpperCase()}</th>`).join('');
+    
+    // Build rows
+    const tbody = document.getElementById('tableBody');
+    tbody.innerHTML = results.map(result => {
+        return '<tr>' + headers.map(h => {
+            const val = result[h];
+            const display = Array.isArray(val) ? val.join(', ') : (val || '-');
+            return `<td>${display}</td>`;
+        }).join('') + '</tr>';
+    }).join('');
+}
+
