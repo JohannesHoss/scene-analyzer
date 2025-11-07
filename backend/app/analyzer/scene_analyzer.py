@@ -273,8 +273,9 @@ Questions:
         for i, question in enumerate(questions, 1):
             prompt += f"{i}. {question}\n"
         
-        prompt += "\nProvide your answers in JSON format with this structure:\n"
-        prompt += '{"answers": ["answer1", "answer2", ...]}'
+        prompt += f"""\n\nIMPORTANT: You MUST respond with ONLY a valid JSON object in this exact format:
+{{\n  "answers": [\n    "Answer to question 1 (2-4 sentences)",\n    "Answer to question 2 (2-4 sentences)",\n    ... ({len(questions)} answers total)\n  ]\n}}\n\nDo NOT include any other text, markdown formatting, or explanations. ONLY the JSON object.
+"""
         
         # Call AI
         try:
@@ -287,7 +288,30 @@ Questions:
             
             # Parse response
             import json
-            response_data = json.loads(response)
+            
+            # Clean response - remove markdown and extra text
+            response_clean = response.strip()
+            
+            # Try to find JSON in response
+            if "```json" in response_clean:
+                # Extract JSON from markdown code block
+                start = response_clean.find("```json") + 7
+                end = response_clean.find("```", start)
+                response_clean = response_clean[start:end].strip()
+            elif "```" in response_clean:
+                # Extract from generic code block
+                start = response_clean.find("```") + 3
+                end = response_clean.find("```", start)
+                response_clean = response_clean[start:end].strip()
+            
+            # Try to find JSON object if still embedded in text
+            if not response_clean.startswith("{"):
+                import re
+                json_match = re.search(r'\{[^{}]*"answers"[^{}]*\[[^\]]*\][^{}]*\}', response_clean, re.DOTALL)
+                if json_match:
+                    response_clean = json_match.group()
+            
+            response_data = json.loads(response_clean)
             answers = response_data.get("answers", [])
             
             # Combine questions and answers
@@ -301,6 +325,15 @@ Questions:
             
             return results
             
+        except json.JSONDecodeError as e:
+            # Return questions with detailed error and response preview
+            return [
+                {
+                    "question": q,
+                    "answer": f"Error parsing JSON: {str(e)}. Response preview: {response[:200] if 'response' in locals() else 'No response'}"
+                }
+                for q in questions
+            ]
         except Exception as e:
             # Return questions with error message
             return [

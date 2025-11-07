@@ -255,7 +255,7 @@ OUTPUT (as pure JSON, no markdown):
                     "messages": [
                         {
                             "role": "system",
-                            "content": "You are a professional screenplay analyst. Provide detailed, thoughtful analysis."
+                            "content": "You are a professional screenplay analyst. When asked for JSON, respond ONLY with valid, parseable JSON. No markdown, no explanations, no additional text - ONLY the JSON object."
                         },
                         {
                             "role": "user",
@@ -263,7 +263,8 @@ OUTPUT (as pure JSON, no markdown):
                         }
                     ],
                     "temperature": temperature,
-                    "max_tokens": max_tokens
+                    "max_tokens": max_tokens,
+                    "response_format": {"type": "json_object"}  # Force JSON output if supported
                 },
                 timeout=60
             )
