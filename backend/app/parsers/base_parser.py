@@ -152,27 +152,49 @@ class BaseParser(ABC):
         time_of_day = None
         int_ext = None
         
-        # Get first meaningful line (skip headers/page numbers)
-        first_lines = [l.strip() for l in text.split('\n')[:5] if l.strip() and len(l.strip()) > 10]
-        search_text = ' '.join(first_lines[:2]) if first_lines else text[:200]
+        # Get first 3 sentences for better context
+        sentences = re.split(r'[.!?]+', text[:500])
+        search_text = ' '.join([s.strip() for s in sentences[:3] if s.strip()])
         
-        # Try to extract time
-        for pattern, _ in time_patterns:
+        # Enhanced time of day patterns (matches "Early morning", "Late afternoon", etc)
+        time_enhanced = [
+            (r'(?i)\b(early morning|late morning|early afternoon|late afternoon|early evening|late evening|early night|late night)\b', 'enhanced'),
+            (r'(?i)\b(morning|morgens?|vormittag)\b', 'morning'),
+            (r'(?i)\b(noon|mittags?)\b', 'noon'),
+            (r'(?i)\b(afternoon|nachmittags?)\b', 'afternoon'),
+            (r'(?i)\b(evening|abends?)\b', 'evening'),
+            (r'(?i)\b(night|nachts?)\b', 'night'),
+            (r'(?i)\b(dawn|dusk|ämmerung)\b', 'twilight')
+        ]
+        
+        # Try to extract time of day
+        for pattern, time_type in time_enhanced:
             match = re.search(pattern, search_text)
             if match:
-                time_of_day = match.group(1).strip().upper()
+                if time_type == 'enhanced':
+                    time_of_day = match.group(1).upper()
+                else:
+                    time_of_day = match.group(1).strip().upper()
                 break
         
-        # Try to detect INT/EXT from context words
-        if re.search(r'(?i)\b(outside|exterior|street|straße|draußen|außen|courtyard|roof|dach)\b', search_text):
-            int_ext = 'EXT.'
-        elif re.search(r'(?i)\b(inside|interior|bedroom|kitchen|living room|apartment|zimmer|schlafzimmer|küche|wohnzimmer|wohnung|raum|room|bathroom|bad)\b', search_text):
-            int_ext = 'INT.'
+        # Enhanced location patterns - look for "in/im/at + THE + location"
+        location_enhanced = [
+            (r'(?i)\b(?:in|im|at)\s+(?:the|der|dem|den)?\s*(bedroom|kitchen|living room|bathroom|apartment|office|studio|hallway|courtyard|stairs|roof)\b', 'en'),
+            (r'(?i)\b(?:in|im|in der|in dem)\s+(schlafzimmer|küche|wohnzimmer|bad|badezimmer|wohnung|büro|flur|treppenhaus|hof|dach)\b', 'de'),
+            (r'(?i)\b(bedroom|kitchen|living room|bathroom|apartment|courtyard|roof|office|studio|hallway|stairs|house|street|playground|kindergarten|construction site)\b', 'direct')
+        ]
         
-        # Try to extract location from common place names
-        loc_match = re.search(r'(?i)\b(bedroom|kitchen|living room|bathroom|apartment|courtyard|roof|office|studio|house|street|playground|kindergarten|schlafzimmer|küche|wohnzimmer|bad|wohnung|hof|dach|büro|haus|straße|spielplatz|kindergarten)\b', search_text)
-        if loc_match:
-            location = loc_match.group(1).title()
+        for pattern, _ in location_enhanced:
+            match = re.search(pattern, search_text)
+            if match:
+                location = match.group(1).strip().title().replace('_', ' ')
+                break
+        
+        # Detect INT/EXT with better context
+        if re.search(r'(?i)\b(outside|exterior|street|straße|draußen|außen|courtyard|roof|dach|playground)\b', search_text):
+            int_ext = 'EXT.'
+        elif re.search(r'(?i)\b(inside|interior|bedroom|kitchen|living room|apartment|zimmer|schlafzimmer|küche|wohnzimmer|wohnung|raum|room|bathroom|bad|hallway|flur|stairs|treppenhaus)\b', search_text):
+            int_ext = 'INT.'
         
         return {
             'number': number,
