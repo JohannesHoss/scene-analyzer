@@ -88,22 +88,22 @@ class ExcelGenerator:
         if self.language == "DE":
             headers = [
                 "Szene", "INT/EXT", "Schauplatz", "Tageszeit",
-                "Story Event", "Subtext", "Wendepunkt",
+                "Story Event", "Subtext", "Wendepunkt-Typ", "Wendepunkt-Moment",
                 "Anwesend", "Erwähnt", "Anzahl", "Stimmung"
             ]
         else:  # EN
             headers = [
                 "Scene", "INT/EXT", "Location", "Time",
-                "Story Event", "Subtext", "Turning Point",
+                "Story Event", "Subtext", "Turn Type", "Turn Moment",
                 "On Stage", "Off Stage", "Count", "Mood"
             ]
         
         # Add mode-specific columns
         if "tatort" in self.mode:
             if self.language == "DE":
-                headers.extend(["Beweise", "Info-Fluss", "Wissensvorsprung", "Redundanz"])
+                headers.extend(["Beweise", "Info-Fluss", "Wissensvorsprung", "Redundanz", "Verdächtige/Alibis"])
             else:
-                headers.extend(["Evidence", "Info Flow", "Knowledge Gap", "Redundancy"])
+                headers.extend(["Evidence", "Info Flow", "Knowledge Gap", "Redundancy", "Suspects/Alibis"])
         
         if "story" in self.mode:
             if self.language == "DE":
@@ -122,7 +122,8 @@ class ExcelGenerator:
             scene.get("time_of_day", ""),
             scene.get("story_event", ""),
             scene.get("subtext", ""),
-            scene.get("turning_point", ""),
+            scene.get("turning_point_type", scene.get("turning_point", "")),  # Fallback for old format
+            scene.get("turning_point_moment", ""),
             ", ".join(scene.get("on_stage", [])) if isinstance(scene.get("on_stage"), list) else str(scene.get("on_stage", "")),
             ", ".join(scene.get("off_stage", [])) if isinstance(scene.get("off_stage"), list) else str(scene.get("off_stage", "")),
             len(scene.get("on_stage", [])) if isinstance(scene.get("on_stage"), list) else 0,
@@ -135,7 +136,8 @@ class ExcelGenerator:
                 scene.get("evidence", ""),
                 scene.get("information_flow", ""),
                 scene.get("knowledge_gap", ""),
-                scene.get("redundancy", "")
+                scene.get("redundancy", ""),
+                scene.get("suspect_status", "")
             ])
         
         if "story" in self.mode:
@@ -157,24 +159,26 @@ class ExcelGenerator:
             3: 12,  # Time
             4: 50,  # Story Event
             5: 30,  # Subtext
-            6: 15,  # Turning Point
-            7: 25,  # On Stage
-            8: 20,  # Off Stage
-            9: 8,   # Count
-            10: 15, # Mood
+            6: 12,  # Turning Point Type
+            7: 40,  # Turning Point Moment
+            8: 25,  # On Stage
+            9: 20,  # Off Stage
+            10: 8,  # Count
+            11: 15, # Mood
         }
         
         # Add mode-specific widths
         if "tatort" in self.mode:
             column_widths.update({
-                11: 30,  # Evidence
-                12: 15,  # Info Flow
-                13: 18,  # Knowledge Gap
-                14: 15   # Redundancy
+                12: 30,  # Evidence
+                13: 15,  # Info Flow
+                14: 18,  # Knowledge Gap
+                15: 15,  # Redundancy
+                16: 35   # Suspects/Alibis
             })
         
         if "story" in self.mode:
-            offset = 11 if "tatort" not in self.mode else 15
+            offset = 12 if "tatort" not in self.mode else 17
             column_widths.update({
                 offset: 20,     # Hero's Journey
                 offset+1: 15,   # Act

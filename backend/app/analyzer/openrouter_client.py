@@ -84,7 +84,7 @@ class OpenRouterClient:
                 content = result['choices'][0]['message']['content']
                 
                 # Parse JSON from content
-                parsed_data = self._parse_response(content, mode)
+                parsed_data = self._parse_response(content, mode, language)
                 
                 return parsed_data
             
@@ -109,12 +109,16 @@ SZENE:
 
 AUSGABE (als reines JSON, ohne Markdown):
 {{
-  "story_event": "Eine prägnante Zusammenfassung in einem Satz",
-  "subtext": "Emotionale/unterschwellige Ebene in 5-10 Wörtern",
-  "turning_point": "Action|Revelation|Decision|Realization|None",
+  "location": "Konkreter Schauplatz aus dem Text (z.B. 'Wohnzimmer', 'Polizeirevier', 'Park')",
+  "time_of_day": "Tageszeit aus dem Kontext (z.B. 'Morgen', 'Nachmittag', 'Nacht', 'Unbekannt')",
+  "int_ext": "INT|EXT|UNBEKANNT (Innenraum oder Außenbereich)",
+  "story_event": "Eine prägnante Zusammenfassung in einem Satz - WAS passiert?",
+  "subtext": "Emotionale/unterschwellige Ebene in 5-10 Wörtern - was wird NICHT gesagt?",
+  "turning_point_type": "Action|Revelation|Decision|Realization|None",
+  "turning_point_moment": "Der genaue Moment/Satz wo der Wendepunkt passiert (z.B. 'Als sie die Tür öffnet und die Leiche sieht') oder 'Keiner'",
   "on_stage": ["Charakter1", "Charakter2"],
-  "off_stage": ["Erwähnter Charakter"],
-  "protagonist_mood": "Wütend|Verzweifelt|Hoffnungsvoll|Erschöpft|Triumphierend|Verwirrt|Entschlossen"
+  "off_stage": ["Erwähnter aber nicht anwesender Charakter"],
+  "protagonist_mood": "Stimmung des Hauptcharakters (Wütend|Verzweifelt|Hoffnungsvoll|Erschöpft|Triumphierend|Verwirrt|Entschlossen|Neutral)"
 }}"""
         else:  # EN
             base_prompt = f"""Analyze this scene and return the information as JSON.
@@ -124,29 +128,35 @@ SCENE:
 
 OUTPUT (as pure JSON, no markdown):
 {{
-  "story_event": "A concise summary in one sentence",
-  "subtext": "Emotional/subtext layer in 5-10 words",
-  "turning_point": "Action|Revelation|Decision|Realization|None",
+  "location": "Specific location from context (e.g. 'Living room', 'Police station', 'Park')",
+  "time_of_day": "Time from context (e.g. 'Morning', 'Afternoon', 'Night', 'Unknown')",
+  "int_ext": "INT|EXT|UNKNOWN (Interior or Exterior)",
+  "story_event": "A concise summary in one sentence - WHAT happens?",
+  "subtext": "Emotional/subtext layer in 5-10 words - what is NOT said?",
+  "turning_point_type": "Action|Revelation|Decision|Realization|None",
+  "turning_point_moment": "The exact moment/sentence where the turning point happens (e.g. 'When she opens the door and sees the body') or 'None'",
   "on_stage": ["Character1", "Character2"],
-  "off_stage": ["Mentioned Character"],
-  "protagonist_mood": "Angry|Desperate|Hopeful|Exhausted|Triumphant|Confused|Determined"
+  "off_stage": ["Mentioned but not present character"],
+  "protagonist_mood": "Main character's mood (Angry|Desperate|Hopeful|Exhausted|Triumphant|Confused|Determined|Neutral)"
 }}"""
         
         # Add mode-specific fields
         if mode in ["tatort", "combined"]:
             if language == "DE":
                 base_prompt += """,
-  "evidence": "Gefundene Beweismittel oder Spuren",
-  "information_flow": "Wahrheit|Lüge|Teilgeständnis|Verschweigen|Irreführung",
-  "knowledge_gap": "Zuschauer>Figur|Figur>Zuschauer|Gleichstand",
-  "redundancy": "Neue Info|Wiederholung|Variation"
+  "evidence": "Gefundene Beweismittel, Spuren oder wichtige Objekte (oder 'Keine')",
+  "information_flow": "Wahrheit (sagt die Wahrheit)|Lüge (lügt aktiv)|Teilgeständnis (halb wahr)|Verschweigen (lässt Info weg)|Irreführung (lenkt ab)",
+  "knowledge_gap": "Zuschauer weiß mehr als Figur|Figur weiß mehr als Zuschauer|Beide wissen gleich viel",
+  "redundancy": "Neue Info (erste Erwähnung)|Wiederholung (exakt gleich)|Variation (neue Perspektive auf bekannte Info)",
+  "suspect_status": "Liste von Charakteren mit Status: 'Name (Verdächtig - Grund)'|'Name (Alibi - Details)'|'Name (Neutral)' oder 'Keine Verdächtigen in dieser Szene'"
 """
             else:
                 base_prompt += """,
-  "evidence": "Found evidence or clues",
-  "information_flow": "Truth|Lie|Partial confession|Concealment|Misdirection",
-  "knowledge_gap": "Viewer>Character|Character>Viewer|Equal",
-  "redundancy": "New info|Repetition|Variation"
+  "evidence": "Found evidence, clues or important objects (or 'None')",
+  "information_flow": "Truth (tells truth)|Lie (actively lies)|Partial confession (half true)|Concealment (withholds info)|Misdirection (deflects)",
+  "knowledge_gap": "Viewer knows more than character|Character knows more than viewer|Both know equally",
+  "redundancy": "New info (first mention)|Repetition (exactly same)|Variation (new perspective on known info)",
+  "suspect_status": "List of characters with status: 'Name (Suspect - reason)'|'Name (Alibi - details)'|'Name (Neutral)' or 'No suspects in this scene'"
 """
         
         if mode in ["story", "combined"]:
@@ -161,7 +171,7 @@ OUTPUT (as pure JSON, no markdown):
         
         return base_prompt
     
-    def _parse_response(self, content: str, mode: str) -> Dict:
+    def _parse_response(self, content: str, mode: str, language: str) -> Dict:
         """Parse AI response and extract JSON"""
         
         # Remove markdown code blocks if present
@@ -186,10 +196,21 @@ OUTPUT (as pure JSON, no markdown):
                 raise ValueError(f"Could not parse JSON from response: {content[:200]}")
         
         # Validate required fields
-        required_fields = ["story_event", "subtext", "turning_point", "on_stage", "protagonist_mood"]
+        required_fields = ["story_event", "subtext", "on_stage", "protagonist_mood"]
         for field in required_fields:
             if field not in data:
                 data[field] = "Unknown"
+        
+        # Handle turning point (backward compatibility)
+        if "turning_point_type" not in data:
+            # Try old format first
+            if "turning_point" in data:
+                data["turning_point_type"] = data["turning_point"]
+            else:
+                data["turning_point_type"] = "None"
+        
+        if "turning_point_moment" not in data:
+            data["turning_point_moment"] = "Keiner" if language == "DE" else "None"
         
         # Ensure lists
         if not isinstance(data.get("on_stage"), list):

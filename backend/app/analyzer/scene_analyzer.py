@@ -21,11 +21,6 @@ class SceneAnalyzer:
         """
         Analyze all scenes with progress updates
         
-        Token Optimization Strategy:
-        - Standard/Tatort modes with >15 scenes: Sample 5 start, 5 middle, 5 end
-        - Story mode: Always analyze all scenes (needed for structure)
-        - Updates progress in job_storage
-        
         Args:
             scenes: List of scene dictionaries
             job_storage: Reference to job storage for progress updates
@@ -37,31 +32,14 @@ class SceneAnalyzer:
         total = len(scenes)
         results = []
         
-        # Determine which scenes to analyze based on mode
-        if self.mode in ["standard", "tatort"] and total > 15:
-            # Sample strategy: 5 beginning, 5 middle, 5 end
-            start_indices = list(range(min(5, total)))
-            middle_start = max(0, (total // 2) - 2)
-            middle_indices = list(range(middle_start, min(middle_start + 5, total)))
-            end_start = max(0, total - 5)
-            end_indices = list(range(end_start, total))
-            
-            # Combine and deduplicate
-            sampled_indices = sorted(set(start_indices + middle_indices + end_indices))
-            scenes_to_analyze = [(i, scenes[i]) for i in sampled_indices]
-            
-            # Mark non-analyzed scenes
-            non_analyzed_indices = set(range(total)) - set(sampled_indices)
-        else:
-            # Story mode or ≤15 scenes: analyze all
-            scenes_to_analyze = list(enumerate(scenes))
-            non_analyzed_indices = set()
+        # Always analyze ALL scenes
+        scenes_to_analyze = list(enumerate(scenes))
         
         # Update job status
         job_storage[job_id]["status"] = "analyzing"
         job_storage[job_id]["total_scenes"] = len(scenes_to_analyze)
         
-        # Analyze scenes
+        # Analyze ALL scenes
         for idx, (scene_num, scene) in enumerate(scenes_to_analyze):
             try:
                 # Update progress
@@ -78,11 +56,12 @@ class SceneAnalyzer:
                 )
                 
                 # Merge with scene metadata
+                # AI values override regex-detected values
                 result = {
                     "number": scene_num + 1,
-                    "int_ext": scene.get("int_ext", "UNKNOWN"),
-                    "location": scene.get("location", "UNKNOWN"),
-                    "time_of_day": scene.get("time_of_day", "UNKNOWN"),
+                    "int_ext": analysis.get("int_ext", scene.get("int_ext", "UNKNOWN")),
+                    "location": analysis.get("location", scene.get("location", "UNKNOWN")),
+                    "time_of_day": analysis.get("time_of_day", scene.get("time_of_day", "UNKNOWN")),
                     **analysis
                 }
                 
@@ -103,26 +82,6 @@ class SceneAnalyzer:
                     "protagonist_mood": "Unknown"
                 })
         
-        # Fill in non-analyzed scenes with placeholders
-        if non_analyzed_indices:
-            for scene_idx in non_analyzed_indices:
-                scene = scenes[scene_idx]
-                results.append({
-                    "number": scene_idx + 1,
-                    "int_ext": scene.get("int_ext", "UNKNOWN"),
-                    "location": scene.get("location", "UNKNOWN"),
-                    "time_of_day": scene.get("time_of_day", "UNKNOWN"),
-                    "story_event": "[Not analyzed - sample mode]",
-                    "subtext": "N/A",
-                    "turning_point": "None",
-                    "on_stage": [],
-                    "off_stage": [],
-                    "protagonist_mood": "Unknown"
-                })
-        
-        # Sort by scene number
-        results.sort(key=lambda x: x["number"])
-        
         return results
     
     def estimate_cost(self, scene_count: int) -> float:
@@ -134,11 +93,8 @@ class SceneAnalyzer:
         - Output: ~200 tokens per scene
         - gpt-4o-mini: ~$0.15 per 1M input, ~$0.60 per 1M output
         """
-        # Determine actual scenes to analyze
-        if self.mode in ["standard", "tatort"] and scene_count > 15:
-            actual_scenes = 15  # Sampled scenes
-        else:
-            actual_scenes = scene_count
+        # Analyze ALL scenes
+        actual_scenes = scene_count
         
         # Token estimates
         input_tokens = actual_scenes * 500

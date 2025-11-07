@@ -78,19 +78,51 @@ class BaseParser(ABC):
         """Extract scenes from treatment (without clear sluglines)"""
         scenes = []
         
-        # Split by double line breaks or scene indicators
-        paragraphs = re.split(r'\n\s*\n', self.text)
+        # Split by double line breaks OR single line breaks (for PDFs)
+        # PDFs often don't have double line breaks
+        if '\n\n' in self.text:
+            paragraphs = re.split(r'\n\s*\n', self.text)
+        else:
+            # For PDFs without paragraph breaks, split by sentences
+            # Group ~3-5 sentences as a "paragraph"
+            sentences = re.split(r'(?<=[.!?])\s+', self.text)
+            paragraphs = []
+            for i in range(0, len(sentences), 3):  # Group 3 sentences
+                para = ' '.join(sentences[i:i+3])
+                if para.strip():
+                    paragraphs.append(para)
         
-        # Time/location indicators that suggest new scene
+        # Enhanced time/location indicators that suggest new scene
         scene_indicators = [
+            # German time indicators
             r'(?i)^später',
             r'(?i)^am nächsten tag',
+            r'(?i)^am (morgen|abend|nachmittag|vormittag)',
             r'(?i)^währenddessen',
             r'(?i)^unterdessen',
             r'(?i)^in der',
+            r'(?i)^in die',
             r'(?i)^im\s+\w+',
             r'(?i)^draussen',
             r'(?i)^drinnen',
+            r'(?i)^plötzlich',
+            r'(?i)^dann',
+            r'(?i)^danach',
+            r'(?i)^kurz darauf',
+            r'(?i)^einige (minuten|stunden|tage) später',
+            # English time indicators
+            r'(?i)^later',
+            r'(?i)^the next (day|morning|evening)',
+            r'(?i)^meanwhile',
+            r'(?i)^outside',
+            r'(?i)^inside',
+            r'(?i)^suddenly',
+            r'(?i)^then',
+            r'(?i)^after',
+            r'(?i)^moments? later',
+            r'(?i)^(minutes|hours|days) later',
+            # Location patterns at start of paragraph
+            r'(?i)^(?:in|im|at|inside|outside)\s+(?:the|der|dem|den)?\s*\w+',
         ]
         
         # Location patterns (German & English)
@@ -109,21 +141,35 @@ class BaseParser(ABC):
         scene_number = 0
         current_text = []
         word_count = 0
-        max_words_per_scene = 500
+        # More aggressive: reduced to 150 words
+        max_words_per_scene = 150
+        # Minimum words before considering a split (avoid tiny scenes)
+        min_words_per_scene = 30
+        
+        # Additional strong scene break patterns
+        strong_breaks = [
+            r'^[A-ZÄÖÜ][a-zäöüß]+(?:morgen|vormittag|mittag|nachmittag|abend|nacht)\.',  # "Montagmorgen."
+            r'^(Montage|Sequenz|Szene|Cut)',  # Technical terms
+            r'^-+$',  # Dividers like "---"
+        ]
         
         for para in paragraphs:
             para = para.strip()
             if not para:
                 continue
             
-            # Check for scene indicators
+            # Check for various scene indicators
             is_new_scene = any(re.match(pattern, para) for pattern in scene_indicators)
+            is_strong_break = any(re.match(pattern, para) for pattern in strong_breaks)
             para_words = len(para.split())
             
             # Start new scene if:
-            # 1. Scene indicator found
-            # 2. Word count exceeds threshold
-            if is_new_scene or (word_count > max_words_per_scene and current_text):
+            # 1. Strong break (always triggers)
+            # 2. Scene indicator found AND we have minimum content
+            # 3. Word count exceeds threshold
+            if is_strong_break or \
+               (is_new_scene and word_count >= min_words_per_scene) or \
+               (word_count > max_words_per_scene and current_text):
                 if current_text:
                     scene_number += 1
                     scene_text = '\n\n'.join(current_text)
