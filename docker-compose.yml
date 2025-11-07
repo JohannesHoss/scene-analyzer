@@ -1,0 +1,30 @@
+version: '3.8'
+
+services:
+  backend:
+    build: ./backend
+    container_name: scene-analyzer-backend
+    ports:
+      - "8001:8000"
+    environment:
+      - OPENROUTER_API_KEY=${OPENROUTER_API_KEY}
+    volumes:
+      - ./backend/app:/app
+    networks:
+      - scene-network
+    restart: unless-stopped
+
+  frontend:
+    build: ./frontend
+    container_name: scene-analyzer-frontend
+    ports:
+      - "3010:80"
+    depends_on:
+      - backend
+    networks:
+      - scene-network
+    restart: unless-stopped
+
+networks:
+  scene-network:
+    driver: bridge

@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Scene Analyzer - Coming Soon</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', system-ui, sans-serif;
+        }
+    </style>
+</head>
+<body class="bg-gray-50 min-h-screen flex items-center justify-center">
+    <div class="container mx-auto px-4 max-w-2xl">
+        <div class="bg-white rounded-2xl shadow-lg p-8 text-center">
+            <!-- Logo/Icon Placeholder -->
+            <div class="mb-6">
+                <svg class="mx-auto h-20 w-20 text-indigo-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zm0 0h12a2 2 0 002-2v-4a2 2 0 00-2-2h-2.343M11 7.343l1.657-1.657a2 2 0 012.828 0l2.829 2.829a2 2 0 010 2.828l-8.486 8.485M7 17h.01" />
+                </svg>
+            </div>
+
+            <!-- Title -->
+            <h1 class="text-3xl font-bold text-gray-900 mb-2">Scene Analyzer</h1>
+            <p class="text-lg text-gray-600 mb-6">AI-powered Screenplay & Treatment Analysis</p>
+
+            <!-- Status -->
+            <div class="bg-indigo-50 rounded-lg p-4 mb-6">
+                <p class="text-sm font-medium text-indigo-900 mb-2">Phase 1: Docker Infrastructure</p>
+                <div class="flex items-center justify-center space-x-2">
+                    <div class="h-2 w-2 bg-green-500 rounded-full animate-pulse"></div>
+                    <span class="text-sm text-indigo-700">System Online</span>
+                </div>
+            </div>
+
+            <!-- API Test -->
+            <div class="border border-gray-200 rounded-lg p-4 mb-6">
+                <p class="text-sm font-medium text-gray-700 mb-3">Backend API Status:</p>
+                <button 
+                    id="testApiBtn" 
+                    class="px-6 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
+                    onclick="testAPI()"
+                >
+                    Test Backend Connection
+                </button>
+                <div id="apiResult" class="mt-3 text-sm"></div>
+            </div>
+
+            <!-- Info -->
+            <div class="text-sm text-gray-500 space-y-2">
+                <p>✅ Docker Compose: Running</p>
+                <p>✅ Backend: Port 8001</p>
+                <p>✅ Frontend: Port 3000</p>
+                <p>⏳ Full UI: Coming in Phase 5</p>
+            </div>
+
+            <!-- Version -->
+            <div class="mt-6 pt-6 border-t border-gray-200">
+                <p class="text-xs text-gray-400">Version 0.1.0 (Phase 1)</p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        async function testAPI() {
+            const resultDiv = document.getElementById('apiResult');
+            const btn = document.getElementById('testApiBtn');
+            
+            btn.disabled = true;
+            btn.textContent = 'Testing...';
+            resultDiv.innerHTML = '<span class="text-gray-500">Connecting to backend...</span>';
+            
+            try {
+                const response = await fetch('http://localhost:8001/health');
+                const data = await response.json();
+                
+                resultDiv.innerHTML = `
+                    <div class="bg-green-50 border border-green-200 rounded p-3">
+                        <p class="text-green-800 font-medium">✅ Backend Connected!</p>
+                        <p class="text-green-600 text-xs mt-1">Status: ${data.status}</p>
+                    </div>
+                `;
+            } catch (error) {
+                resultDiv.innerHTML = `
+                    <div class="bg-red-50 border border-red-200 rounded p-3">
+                        <p class="text-red-800 font-medium">❌ Connection Failed</p>
+                        <p class="text-red-600 text-xs mt-1">${error.message}</p>
+                    </div>
+                `;
+            } finally {
+                btn.disabled = false;
+                btn.textContent = 'Test Backend Connection';
+            }
+        }
+
+        // Auto-test on load
+        window.addEventListener('load', () => {
+            setTimeout(testAPI, 500);
+        });
+    </script>
+</body>
+</html>
