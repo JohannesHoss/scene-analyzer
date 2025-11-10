@@ -18,9 +18,15 @@ app = FastAPI(
 )
 
 # CORS configuration for frontend
+# Allow both local development and production
+allowed_origins = [
+    "http://localhost:3010",  # Local development
+    "https://*.railway.app",   # Railway production
+]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3010"],
+    allow_origins=["*"],  # Wildcard for Railway (since frontend is on same domain)
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
